@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Demo</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+        let scene, renderer, currentCameraIndex;
+        let cameras = [];
+        let controlsList = [];
+        let clock = new THREE.Clock();
+        let cat, frontRightLeg, frontLeftLeg, backRightLeg, backLeftLeg;
+        let isBouncing = false;
+        let initialCatY = 0;
+        let meowSound;
+        let skybox;
+        let birdMixer, fastBirdMixer;
+        let boat;
+        let boatDirection = 1; // 1 for forward, -1 for backward
+        let backgroundMusic;
+
+        function init() {
+            // Scene
+            scene = new THREE.Scene();
+
+            // Third-person camera
+            const thirdPersonCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            thirdPersonCamera.position.set(0, 5, 10);
+            cameras.push(thirdPersonCamera);
+
+            // First-person camera
+            const firstPersonCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            firstPersonCamera.position.set(0, 2, 1);
+            cameras.push(firstPersonCamera);
+
+            // Set the initial camera
+            currentCameraIndex = 0;
+            let camera = cameras[currentCameraIndex];
+
+            // Add audio listener
+            const listener = new THREE.AudioListener();
+            camera.add(listener);
+
+            // Load audio
+            const audioLoader = new THREE.AudioLoader();
+            meowSound = new THREE.Audio(listener);
+            audioLoader.load('meow.mp3', function(buffer) {
+                meowSound.setBuffer(buffer);
+                meowSound.setLoop(false);
+                meowSound.setVolume(0.5);
+            });
+
+            // Load background music
+            backgroundMusic = new THREE.Audio(listener);
+            audioLoader.load('song.mp3', function(buffer) {
+                backgroundMusic.setBuffer(buffer);
+                backgroundMusic.setLoop(true);
+                backgroundMusic.setVolume(0.3);
+                backgroundMusic.play(); // Play the background music
+            });
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // OrbitControls for third-person camera
+            const thirdPersonControls = new OrbitControls(thirdPersonCamera, renderer.domElement);
+            thirdPersonControls.enableDamping = true;
+            controlsList.push(thirdPersonControls);
+
+            // Add a light
+            const light = new THREE.DirectionalLight(0xffffff, 1);
+            light.position.set(-10, 3, 10).normalize();
+            scene.add(light);
+
+            // Skybox
+            var geometry = new THREE.BoxGeometry(700, 150, 700);
+            var cubeTextures = [
+                new THREE.TextureLoader().load('skybox_right.jpg'), // right
+                new THREE.TextureLoader().load('skybox_left.jpg'), // left
+                new THREE.TextureLoader().load('skybox_top.jpg'), // top
+                new THREE.TextureLoader().load('skybox_bottom.jpg'), // bottom
+                new THREE.TextureLoader().load('skybox_back.jpg'), // back
+                new THREE.TextureLoader().load('skybox_front.jpg')  // front
+            ];
+            var materials = [];
+            for (var i = 0; i < 6; i++) {
+                materials.push(new THREE.MeshBasicMaterial({ map: cubeTextures[i], side: THREE.BackSide }));
+            }
+            var skybox = new THREE.Mesh(geometry, materials);
+            skybox.position.set(20, 34, 0);
+            scene.add(skybox);
+
+            // Create clouds
+            const cloudGroup = new THREE.Group();
+            const cloudMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
+
+            for (let i = 0; i < 15; i++) {
+                const cloud = new THREE.Group();
+                const cloudSize = Math.random() * 20 + 10; // Kích thước ngẫu nhiên cho đám mây
+
+                for (let j = 0; j < 5; j++) {
+                    const sphereSize = Math.random() * 5 + 3; // Kích thước ngẫu nhiên cho khối cầu
+                    const sphere = new THREE.Mesh(new THREE.SphereGeometry(sphereSize, 32, 32), cloudMaterial);
+                    sphere.position.set(
+                        Math.random() * 20 - 10,
+                        Math.random() * 10 - 5,
+                        Math.random() * 20 - 10
+                    );
+                    cloud.add(sphere);
+                }
+
+                cloud.position.set(
+                    Math.random() * 800 - 400,
+                    Math.random() * 50 + 50,
+                    Math.random() * 800 - 400
+                );
+                cloudGroup.add(cloud);
+            }
+            scene.add(cloudGroup);
+
+            // Load textures
+            const textureLoader = new THREE.TextureLoader();
+            const bodyTexture = textureLoader.load('fur.jpg');
+            const eyeTexture = textureLoader.load('cateyes.jpg');
+
+            // Pyramid base
+            const pyramidGeometry = new THREE.ConeGeometry(3, 4, 4);
+            const pyramidTexture = textureLoader.load('texturePyramid2.jpg'); // Fix the variable name here
+            const pyramidMaterial = new THREE.MeshBasicMaterial({ map: pyramidTexture });
+            // Pyramid1
+            const pyramid1 = new THREE.Mesh(pyramidGeometry, pyramidMaterial);
+            pyramid1.position.set(350, -35, -100);
+            pyramid1.rotation.y = Math.PI / 4;
+            pyramid1.scale.set(20, 20, 20);
+            scene.add(pyramid1);
+            // Pyramid2
+            const pyramid2 = new THREE.Mesh(pyramidGeometry, pyramidMaterial);
+            pyramid2.position.set(100, 0, -200);
+            pyramid2.rotation.y = Math.PI / 4;
+            pyramid2.scale.set(50, 50, 50);
+            scene.add(pyramid2);
+            // Pyramid3
+            const pyramid3 = new THREE.Mesh(pyramidGeometry, pyramidMaterial);
+            pyramid3.position.set(200, 0, 300);
+            pyramid3.rotation.y = Math.PI / 4;
+            pyramid3.scale.set(30, 30, 30);
+            scene.add(pyramid3);
+
+            // GoldPyramid
+            const GpyramidGroup = new THREE.Group();
+            const baseWidth = 15;
+            const height = 13;
+            const colors = [
+                0xFFD700, // Gold
+                0xFFFF00, // Yellow
+                0xFFF44F, // LemonYellow
+                0xFFFF66, // Unmellow Yellow
+            ];
+            let currentHeight = 0;
+            let layerWidth = baseWidth;
+            let layerDepth = baseWidth;
+
+            const light2 = new THREE.DirectionalLight(0xffffff, 5);
+            light2.position.set(0, 3, 0);
+            light2.castShadow = true;
+            scene.add(light2);
+
+            const light3 = new THREE.DirectionalLight(0xffffff, 5);
+            light3.position.set(3, 0, 0);
+            scene.add(light3);
+
+            const light4 = new THREE.DirectionalLight(0xffffff, 5);
+            light4.position.set(0, 0, 3);
+            light4.castShadow = true;
+            scene.add(light4);
+
+            light.shadow.mapSize.width = 1024;
+            light.shadow.mapSize.height = 1024;
+            light.shadow.camera.near = 0.5;
+            light.shadow.camera.far = 50;
+
+            for (let i = 0; i < height; i++) {
+                const boxWidth = layerWidth;
+                const boxDepth = layerDepth;
+                const colorIndex = Math.floor(i / height * colors.length);
+                const boxMaterial = new THREE.MeshStandardMaterial({ color: colors[colorIndex], metalness: 0.8, roughness: 0.1 });
+                const boxGeometry = new THREE.BoxGeometry(boxWidth, 1, boxDepth);
+                const boxMesh = new THREE.Mesh(boxGeometry, boxMaterial);
+                boxMesh.castShadow = true;
+                boxMesh.position.set(0, currentHeight, -20);
+                GpyramidGroup.add(boxMesh);
+                currentHeight += 0.55;
+                layerWidth *= 0.9;
+                layerDepth *= 0.9;
+            }
+
+            scene.add(GpyramidGroup);
+            GpyramidGroup.scale.set(10, 10, 10);
+            GpyramidGroup.position.set(295, -37, 220);
+
+            // Load GLTF model
+            const loader = new GLTFLoader();
+            loader.load('cat.glb', function(gltf) {
+                const catModel = gltf.scene;
+                catModel.position.set(290, 35, 20);
+                catModel.scale.set(20, 20, 20);
+                catModel.rotation.y = Math.PI;
+                scene.add(catModel);
+            }, undefined, function(error) {
+                console.error(error);
+            });
+
+            // Load and add the first palm tree model
+            const loaderPalmTree1 = new GLTFLoader();
+            loaderPalmTree1.load('palmtree.glb', function(gltf) {
+                const palmTree1 = gltf.scene;
+                palmTree1.scale.set(15, 15, 15); // Adjust the scale as needed
+                palmTree1.position.set(15, -37, -120); // Position it behind the first statue
+                scene.add(palmTree1);
+            }, undefined, function(error) {
+                console.error(error);
+            });
+
+            // Load and add the second palm tree model
+            const loaderPalmTree2 = new GLTFLoader();
+            loaderPalmTree2.load('palmtree.glb', function(gltf) {
+                const palmTree2 = gltf.scene;
+                palmTree2.scale.set(10, 10, 10); // Adjust the scale as needed
+                palmTree2.position.set(350, -37, -130); // Position it behind the second statue
+                scene.add(palmTree2);
+            }, undefined, function(error) {
+                console.error(error);
+            });
+
+            // Load and add the third palm tree model
+            const loaderPalmTree3 = new GLTFLoader();
+            loaderPalmTree3.load('palmtree.glb', function(gltf) {
+                const palmTree3 = gltf.scene;
+                palmTree3.scale.set(20, 20, 20); // Adjust the scale as needed
+                palmTree3.position.set(350, -37, 150); // Position it behind the second statue
+                scene.add(palmTree3);
+            }, undefined, function(error) {
+                console.error(error);
+            });
+
+            // Load and add the fourth palm tree model
+            const loaderPalmTree4 = new GLTFLoader();
+            loaderPalmTree4.load('palmtree.glb', function(gltf) {
+                const palmTree4 = gltf.scene;
+                palmTree4.scale.set(10, 10, 10); // Adjust the scale as needed
+                palmTree4.position.set(300, -37, 150); // Position it behind the second statue
+                scene.add(palmTree4);
+            }, undefined, function(error) {
+                console.error(error);
+            });
+
+            // Load and add the fifth palm tree model
+            const loaderPalmTree5 = new GLTFLoader();
+            loaderPalmTree5.load('palmtree.glb', function(gltf) {
+                const palmTree5 = gltf.scene;
+                palmTree5.scale.set(10, 10, 10); // Adjust the scale as needed
+                palmTree5.position.set(-200, -37, 150); // Position it behind the second statue
+                scene.add(palmTree5);
+            }, undefined, function(error) {
+                console.error(error);
+            });
+
+            // Cat
+            cat = new THREE.Group();
+            const bodyGeometry = new THREE.BoxGeometry(2, 1, 1);
+            const bodyMaterial = new THREE.MeshBasicMaterial({ map: bodyTexture });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            cat.add(body);
+
+            const faceGeometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+            const faceMaterial = new THREE.MeshBasicMaterial({ map: bodyTexture });
+            const face = new THREE.Mesh(faceGeometry, faceMaterial);
+            face.position.set(0.75, 0.9, 0);
+            cat.add(face);
+
+            const eyeGeometry = new THREE.SphereGeometry(0.2, 32, 32);
+            const eyeMaterial = new THREE.MeshBasicMaterial({ map: eyeTexture });
+
+            const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+            leftEye.position.set(1.45, 1.1, 0.3);
+            cat.add(leftEye);
+
+            const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+            rightEye.position.set(1.45, 1.1, -0.3);
+            cat.add(rightEye);
+
+            const tailGeometry = new THREE.BoxGeometry(0.2, 0.2, 1);
+            const tailMaterial = new THREE.MeshBasicMaterial({ map: bodyTexture });
+            const tail = new THREE.Mesh(tailGeometry, tailMaterial);
+            tail.position.set(-1, 0.5, 0);
+            tail.rotation.x = Math.PI / 2;
+            tail.rotation.y = Math.PI / 4;
+            cat.add(tail);
+
+            const leftEarGeometry = new THREE.ConeGeometry(0.3, 0.35, 4);
+            const leftEarMaterial = new THREE.MeshBasicMaterial({ map: bodyTexture });
+            const leftEar = new THREE.Mesh(leftEarGeometry, leftEarMaterial);
+            leftEar.rotation.y = Math.PI / 2;
+            leftEar.position.set(1, 1.8, 0.45);
+            cat.add(leftEar);
+
+            const rightEarGeometry = new THREE.ConeGeometry(0.3, 0.35, 4);
+            const rightEarMaterial = new THREE.MeshBasicMaterial({ map: bodyTexture });
+            const rightEar = new THREE.Mesh(rightEarGeometry, rightEarMaterial);
+            rightEar.position.set(1, 1.8, -0.45);
+            rightEar.rotation.y = Math.PI / 2;
+            cat.add(rightEar);
+
+            const legGeometry = new THREE.BoxGeometry(0.3, 0.8, 0.3);
+            const legMaterial = new THREE.MeshBasicMaterial({ map: bodyTexture });
+
+            frontLeftLeg = new THREE.Mesh(legGeometry, legMaterial);
+            frontLeftLeg.position.set(0.5, -0.4, 0.4);
+            cat.add(frontLeftLeg);
+
+            frontRightLeg = new THREE.Mesh(legGeometry, legMaterial);
+            frontRightLeg.position.set(0.5, -0.4, -0.4);
+            cat.add(frontRightLeg);
+
+            backLeftLeg = new THREE.Mesh(legGeometry, legMaterial);
+            backLeftLeg.position.set(-0.5, -0.4, 0.4);
+            cat.add(backLeftLeg);
+
+            backRightLeg = new THREE.Mesh(legGeometry, legMaterial);
+            backRightLeg.position.set(-0.5, -0.4, -0.4);
+            cat.add(backRightLeg);
+
+            scene.add(cat);
+            cat.scale.set(10, 10, 10);
+            cat.position.set(-10,-34,0);
+
+            // River and boat
+            const loaderRiver = new GLTFLoader();
+            loaderRiver.load('fish_river.glb', function(gltf) {
+                const riverModel = gltf.scene;
+                riverModel.position.set(-250, -30, 100);
+                scene.add(riverModel);
+            }, undefined, function(error) {
+                console.error(error);
+            });
+
+            const loaderRiver2 = new GLTFLoader();
+            loaderRiver2.load('fish_river.glb', function(gltf) {
+                const riverModel2 = gltf.scene;
+                riverModel2.position.set(-250, -30, -100);
+                scene.add(riverModel2);
+            }, undefined, function(error) {
+                console.error(error);
+            });
+
+            const loaderBoat = new GLTFLoader();
+            loaderBoat.load('boat1.glb', function(gltf) {
+                boat = gltf.scene;
+                boat.position.set(-300, -5, 80);
+                boat.scale.set(10, 10, 10);
+                boat.rotateY(Math.PI / 2);
+                scene.add(boat);
+            }, undefined, function(error) {
+                console.error(error);
+            });
+
+            // Rock
+            loader.load('rock.glb', function(gltf) {
+                const rock = gltf.scene;
+                rock.position.set(300, -37, 150);
+                rock.scale.set(5,5,5);
+                rock.rotation.y = Math.PI;
+                scene.add(rock);
+            }, undefined, function(error) {
+                console.error(error);
+            });
+
+            loader.load('rock.glb', function(gltf) {
+                const rock2 = gltf.scene;
+                rock2.position.set(300, -37, -120);
+                rock2.scale.set(3,3,3);
+                rock2.rotation.y = Math.PI;
+                scene.add(rock2);
+            }, undefined, function(error) {
+                console.error(error);
+            });
+
+            loader.load('rock.glb', function(gltf) {
+                const rock3 = gltf.scene;
+                rock3.position.set(15, -37, -100);
+                rock3.scale.set(7,7,7);
+                scene.add(rock3);
+            }, undefined, function(error) {
+                console.error(error);
+            });
+
+            // Small
+            loader.load('smal.glb', function(gltf) {
+                const smal = gltf.scene;
+                smal.position.set(190, -25, 70);
+                smal.scale.set(2.5,2.5,2.5);
+                smal.rotation.y = Math.PI;
+                scene.add(smal);
+            }, undefined, function(error) {
+                console.error(error);
+            });
+
+            loader.load('smal.glb', function(gltf) {
+                const smal2 = gltf.scene;
+                smal2.position.set(190, -25, -30);
+                smal2.scale.set(2.5,2.5,2.5);
+                scene.add(smal2);
+            }, undefined, function(error) {
+                console.error(error);
+            });
+
+            loader.load('smal.glb', function(gltf) {
+                const smal = gltf.scene;
+                smal.position.set(170, -35, 60);
+                smal.scale.set(1,1,1);
+                smal.rotation.y = Math.PI;
+                scene.add(smal);
+            }, undefined, function(error) {
+                console.error(error);
+            });
+
+            loader.load('smal.glb', function(gltf) {
+                const smal2 = gltf.scene;
+                smal2.position.set(170, -35, -20);
+                smal2.scale.set(1,1,1);
+                scene.add(smal2);
+            }, undefined, function(error) {
+                console.error(error);
+            });
+
+            // Load GLTF model for the bird
+            const loaderBird = new GLTFLoader();
+            loaderBird.load('low_poly_bird_animated.glb', function(gltf) {
+                const bird = gltf.scene;
+                bird.scale.set(6, 6, 6);
+                bird.position.set(0, 60, 0);
+                scene.add(bird);
+                const mixer = new THREE.AnimationMixer(bird);
+                const action = mixer.clipAction(gltf.animations[0]);
+                action.play();
+                birdMixer = mixer;
+            }, undefined, function(error) {
+                console.error(error);
+            });
+
+            // Load GLTF model for the fast bird
+            const loaderFastBird = new GLTFLoader();
+            loaderFastBird.load('white_eagle_animation_fast_fly.glb', function(gltf) {
+                const fastBird = gltf.scene;
+                fastBird.scale.set(1, 1, 1);
+                fastBird.position.set(300, 60, -200); // Đặt vị trí xa so với con chim hiện tại
+                scene.add(fastBird);
+                const mixer = new THREE.AnimationMixer(fastBird);
+                const action = mixer.clipAction(gltf.animations[0]);
+                action.setEffectiveTimeScale(1.5); // Vỗ cánh nhanh gấp đôi
+                action.play();
+                fastBirdMixer = mixer;
+            }, undefined, function(error) {
+                console.error(error);
+            });
+
+            // Event listeners for keyboard input
+            document.addEventListener('keydown', onKeyDown);
+
+            // Event listener for mouse click
+            renderer.domElement.addEventListener('click', onClick);
+
+            // Set the current camera controls
+            switchCamera();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta(); // Thời gian giữa các frame
+
+            // Time-based animation cho các chân của mèo
+            const time = clock.getElapsedTime();
+            const angle = Math.sin(time * 2) * Math.PI / 6;
+            frontRightLeg.rotation.z = angle;
+            frontLeftLeg.rotation.z = -angle;
+            backRightLeg.rotation.z = -angle;
+            backLeftLeg.rotation.z = angle;
+
+            // Bounce animation cho mèo
+            if (isBouncing) {
+                const bounceHeight = 0.5;
+                const bounceSpeed = 2.0;
+                const bounceDelta = Math.abs(Math.sin(time * bounceSpeed)) * bounceHeight;
+                cat.position.y = initialCatY + bounceDelta;
+
+                // Dừng bounce animation khi đạt vị trí ban đầu
+                if (bounceDelta < 0.01) {
+                    isBouncing = false;
+                    cat.position.y = initialCatY;
+                }
+            }
+
+            // Update mixer của chim nếu tồn tại
+            if (birdMixer) {
+                birdMixer.update(delta);
+            }
+
+            // Update mixer của chim nhanh nếu tồn tại
+            if (fastBirdMixer) {
+                fastBirdMixer.update(delta);
+            }
+
+            // Di chuyển thuyền
+            if (boat) {
+                const boatSpeed = 0.1;
+                boat.position.z += boatSpeed * boatDirection;
+                if (boat.position.z > 100) {
+                    boatDirection = -1;
+                } else if (boat.position.z < -100) {
+                    boatDirection = 1;
+                }
+            }
+
+            if (currentCameraIndex === 1) {
+                // First-person camera follows the cat's head
+                const headPosition = new THREE.Vector3();
+                headPosition.setFromMatrixPosition(cat.children[1].matrixWorld);
+                cameras[1].position.set(headPosition.x, headPosition.y, headPosition.z + 25);
+                cameras[1].lookAt(headPosition.x, headPosition.y, headPosition.z);
+                cameras[1].rotateY(Math.PI / 2);
+                cameras[1].rotateY(Math.PI / 2);
+                cameras[1].rotateY(Math.PI / 2);
+            } else {
+                controlsList[currentCameraIndex].update();
+            }
+
+            renderer.render(scene, cameras[currentCameraIndex]);
+        }
+
+        function onKeyDown(event) {
+            const speed = 0.9; // Adjust the speed as needed
+
+            switch (event.key) {
+                case 'a':
+                    cat.position.z -= speed;
+                    break;
+                case 'd':
+                    cat.position.z += speed;
+                    break;
+                case 's':
+                    cat.position.x -= speed;
+                    break;
+                case 'w':
+                    cat.position.x += speed;
+                    break;
+                case ' ':
+                    if (!isBouncing) {
+                        isBouncing = true;
+                        initialCatY = cat.position.y;
+                    }
+                    break;
+                case 'c': // Press 'c' to switch camera
+                    switchCamera();
+                    break;
+            }
+        }
+
+        function onClick(event) {
+            const mouse = new THREE.Vector2();
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, cameras[currentCameraIndex]);
+
+            const intersects = raycaster.intersectObject(cat, true);
+
+            if (intersects.length > 0) {
+                if (meowSound) {
+                    meowSound.play();
+                }
+            }
+        }
+
+        function switchCamera() {
+            currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
+            if (currentCameraIndex === 0) {
+                controlsList[0].enabled = true;
+            } else {
+                controlsList[0].enabled = false;
+            }
+        }
+
+        init();
+        animate();
+    </script>
+</body>
+</html>
